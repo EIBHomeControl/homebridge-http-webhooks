@@ -159,10 +159,15 @@ HttpWebHooksPlatform.prototype = {
                   if (cachedValue === undefined) {
                     cachedValue = 0;
                   }
-                  if (!theUrlParams.value) {
+                  var cachedStatusLowBattery = this.storage.getItemSync("http-webhook-" + accessoryId + "-StatusLowBattery");
+                  if (cachedStatusLowBattery == undefined) {
+                    cachedStatusLowBattery = false;
+                  }
+                  if (!theUrlParams.value && !theUrlParams.statuslowbattery) {
                     responseBody = {
                       success : true,
-                      state : cachedValue
+                      state : cachedValue,
+                      statuslowbattery : cachedStatusLowBattery
                     };
                   }
                   else {
@@ -170,6 +175,14 @@ HttpWebHooksPlatform.prototype = {
                     this.storage.setItemSync("http-webhook-" + accessoryId, value);
                     if (cachedValue !== value) {
                       accessory.changeHandler(value);
+                    }
+                    if (theUrlParams.statuslowbattery) {
+                      var state = theUrlParams.statuslowbattery;
+                      var stateLowBatteryState = state === "true";
+                      this.storage.setItemSync("http-webhook-" + accessoryId + "-StatusLowBattery", stateLowBatteryState);
+                      if (cachedStatusLowBattery !== stateLowBatteryState) {
+                        accessory.changeHandlerBatteryStatusLow(stateLowBatteryState);
+                      }
                     }
                   }
                 }
@@ -315,10 +328,14 @@ function HttpWebHookSensorAccessory(log, sensorConfig, storage) {
   else if (this.type === "temperature") {
     this.service = new Service.TemperatureSensor(this.name);
     this.changeHandler = (function(newState) {
-      this.log("Change HomeKit value for temperature sensor to '%s'.", newState);
+      this.log("Change HomeKit value for temperature sensor '%s' to '%s'.", this.id, newState);
       this.service.getCharacteristic(Characteristic.CurrentTemperature).updateValue(newState, undefined, CONTEXT_FROM_WEBHOOK);
+    this.changeHandlerBatteryStatusLow = (function(newState){
+      this.log("Change Homekit value for '%s' battery state low to '%s'.", this.id, newState);
+      this.service.getCharacteristic(Characteristic.StatusLowBattery).updateValue(newState, undefined, CONTEXT_FROM_WEBHOOK)
     }).bind(this);
     this.service.getCharacteristic(Characteristic.CurrentTemperature).on('get', this.getState.bind(this));
+    this.service.getCharacteristic(Characteristic.StatusLowBattery).on('get', this.getStatusLowBattery.bind(this));
   }
 }
 
@@ -341,6 +358,16 @@ HttpWebHookSensorAccessory.prototype.getState = function(callback) {
     callback(null, state);
   }
 };
+
+HttpWebHookSensorAccessory.prototype.getStatusLowBattery = function(callback) {
+  this.log("Getting current state for '%s'...", this.id);
+  var stateLowBatteryState = this.storage.getItemSync("http-webhook-" + this.id + "-StatusLowBattery");
+  if (stateLowBatteryState === undefined) {
+    stateLowBatteryState = false;
+  }
+  callback(null, stateLowBatteryState);
+};
+
 
 HttpWebHookSensorAccessory.prototype.getServices = function() {
   return [ this.service ];
