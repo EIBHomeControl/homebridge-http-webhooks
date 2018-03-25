@@ -70,6 +70,9 @@ To update a numeric accessory you need to call the url `http://yourHomebridgeSer
 
 ## Temperature sensor
 For temperature sensors the value for `NEWVALUE` is the new temperature reading.
+## Temperature sensor Battery Low
+For temperatur sensors the additional state `statuslowbattery` is available. The value for `NEWSTATE` is either `true` for battery low or `false` for normal and
+can be changed by calling the url `http://yourHomebridgeServerIp:webhook_port/?accessoryId=theAccessoryIdToTrigger&statuslowbattery=NEWSTATE` 
 
 ## Humidity sensor
 For humidity sensors the value for `NEWVALUE` is the new relative humidity percentage reading.
@@ -114,7 +117,9 @@ Example config.json:
                     {
                     "id": "sensor5",
                     "name": "Sensor name 5",
-                    "type": "temperature"
+                    "type": "temperature",
+                    "enableHistory": true,
+                    "disableTimer": true
                     },
                     {
                     "id": "sensor6",

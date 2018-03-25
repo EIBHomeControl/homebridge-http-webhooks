@@ -1,3 +1,10 @@
+### 0.0.35
+
+New features:
+
+  - Added support for battery state to temperature sensor
+  - Added support for history (fakegato) to temperature sensor
+  
 ### 0.0.34
 
 Bugfix:

@@ -1,7 +1,10 @@
+"use strict";
+
 var request = require("request");
 var http = require('http');
 var url = require('url');
-var Service, Characteristic;
+const moment = require('moment');
+var Service, Characteristic,FakeGatoHistoryService;
 var DEFAULT_REQUEST_TIMEOUT = 10000;
 var CONTEXT_FROM_WEBHOOK = "fromHTTPWebhooks";
 var CONTEXT_FROM_TIMEOUTCALL = "fromTimeoutCall";
@@ -9,6 +12,7 @@ var CONTEXT_FROM_TIMEOUTCALL = "fromTimeoutCall";
 module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
+  FakeGatoHistoryService = require('fakegato-history')(homebridge);
 
   homebridge.registerPlatform("homebridge-http-webhooks", "HttpWebHooks", HttpWebHooksPlatform);
   homebridge.registerAccessory("homebridge-http-webhooks", "HttpWebHookSensor", HttpWebHookSensorAccessory);
@@ -173,9 +177,13 @@ HttpWebHooksPlatform.prototype = {
                   else {
                     var value = theUrlParams.value;
                     this.storage.setItemSync("http-webhook-" + accessoryId, value);
+
                     if (cachedValue !== value) {
-                      accessory.changeHandler(value);
+                    	accessory.changeHandler(value);
                     }
+                    //always handle fakeGato
+                    accessory.fakeGatoHandler(value);
+
                     if (theUrlParams.statuslowbattery) {
                       var state = theUrlParams.statuslowbattery;
                       var stateLowBatteryState = state === "true";
@@ -282,58 +290,96 @@ function HttpWebHookSensorAccessory(log, sensorConfig, storage) {
   this.id = sensorConfig["id"];
   this.name = sensorConfig["name"];
   this.type = sensorConfig["type"];
+  this.disableTimer = sensorConfig["disableTimer"] || false;
+  this.enableHistory = sensorConfig["enableHistory"] || false;
   this.storage = storage;
+
+
+  this.informationService = new Service.AccessoryInformation();
+
+  this.informationService
+       .setCharacteristic(Characteristic.Manufacturer, "Rocky98")
+       .setCharacteristic(Characteristic.Model, this.type + "-" + this.name)
+       .setCharacteristic(Characteristic.SerialNumber, this.id);
+
 
   if (this.type === "contact") {
     this.service = new Service.ContactSensor(this.name);
+
     this.changeHandler = (function(newState) {
       this.log("Change HomeKit state for contact sensor to '%s'.", newState);
       this.service.getCharacteristic(Characteristic.ContactSensorState).updateValue(newState ? Characteristic.ContactSensorState.CONTACT_DETECTED : Characteristic.ContactSensorState.CONTACT_NOT_DETECTED, undefined, CONTEXT_FROM_WEBHOOK);
     }).bind(this);
+
     this.service.getCharacteristic(Characteristic.ContactSensorState).on('get', this.getState.bind(this));
   }
   else if (this.type === "motion") {
     this.service = new Service.MotionSensor(this.name);
+
     this.changeHandler = (function(newState) {
-      // this.log("Change HomeKit state for motion sensor to '%s'.", newState);
+      this.log("Change HomeKit state for motion sensor to '%s'.", newState);
       this.service.getCharacteristic(Characteristic.MotionDetected).updateValue(newState, undefined, CONTEXT_FROM_WEBHOOK);
     }).bind(this);
+
     this.service.getCharacteristic(Characteristic.MotionDetected).on('get', this.getState.bind(this));
   }
   else if (this.type === "occupancy") {
     this.service = new Service.OccupancySensor(this.name);
+
     this.changeHandler = (function(newState) {
-      // this.log("Change HomeKit state for occupancy sensor to '%s'.",
-      // newState);
+      this.log("Change HomeKit state for occupancy sensor to '%s'.",newState);
       this.service.getCharacteristic(Characteristic.OccupancyDetected).updateValue(newState ? Characteristic.OccupancyDetected.OCCUPANCY_DETECTED : Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED, undefined, CONTEXT_FROM_WEBHOOK);
     }).bind(this);
+
     this.service.getCharacteristic(Characteristic.OccupancyDetected).on('get', this.getState.bind(this));
   }
   else if (this.type === "smoke") {
     this.service = new Service.SmokeSensor(this.name);
+
     this.changeHandler = (function(newState) {
       this.log("Change HomeKit state for smoke sensor to '%s'.", newState);
       this.service.getCharacteristic(Characteristic.SmokeDetected).updateValue(newState ? Characteristic.SmokeDetected.SMOKE_DETECTED : Characteristic.SmokeDetected.SMOKE_NOT_DETECTED, undefined, CONTEXT_FROM_WEBHOOK);
     }).bind(this);
+
     this.service.getCharacteristic(Characteristic.SmokeDetected).on('get', this.getState.bind(this));
   }
   else if (this.type === "humidity") {
     this.service = new Service.HumiditySensor(this.name);
+
     this.changeHandler = (function(newState) {
       this.log("Change HomeKit value for humidity sensor to '%s'.", newState);
       this.service.getCharacteristic(Characteristic.CurrentRelativeHumidity).updateValue(newState, undefined, CONTEXT_FROM_WEBHOOK);
     }).bind(this);
+
     this.service.getCharacteristic(Characteristic.CurrentRelativeHumidity).on('get', this.getState.bind(this));
   }
   else if (this.type === "temperature") {
     this.service = new Service.TemperatureSensor(this.name);
+
+    this.fakeGatoHistoryService = undefined;
+    this.log("enable history for '%s' -> %s", this.name, this.enableHistory);
+    if (this.enableHistory) {
+    	this.fakeGatoHistoryService = new FakeGatoHistoryService("weather", this ,{
+      		disableTimer:this.disableTimer
+    	});
+    }
     this.changeHandler = (function(newState) {
       this.log("Change HomeKit value for temperature sensor '%s' to '%s'.", this.id, newState);
       this.service.getCharacteristic(Characteristic.CurrentTemperature).updateValue(newState, undefined, CONTEXT_FROM_WEBHOOK);
+
+    }).bind(this);
+
+    this.fakeGatoHandler = (function(newState){
+    	if (this.fakeGatoHistoryService){
+    		this.fakeGatoHistoryService.addEntry({time: moment().unix(), temp:newState});
+    	}
+    }).bind(this);
+
     this.changeHandlerBatteryStatusLow = (function(newState){
       this.log("Change Homekit value for '%s' battery state low to '%s'.", this.id, newState);
       this.service.getCharacteristic(Characteristic.StatusLowBattery).updateValue(newState, undefined, CONTEXT_FROM_WEBHOOK)
     }).bind(this);
+
     this.service.getCharacteristic(Characteristic.CurrentTemperature).on('get', this.getState.bind(this));
     this.service.getCharacteristic(Characteristic.StatusLowBattery).on('get', this.getStatusLowBattery.bind(this));
   }
@@ -370,7 +416,17 @@ HttpWebHookSensorAccessory.prototype.getStatusLowBattery = function(callback) {
 
 
 HttpWebHookSensorAccessory.prototype.getServices = function() {
-  return [ this.service ];
+
+  var services = [];
+
+  services = [this.informationService, this.service];
+
+  if (this.fakeGatoHistoryServer)
+  {
+  	services[services.length] = this.fakeGatoHistroyService;
+  }
+
+  return services;
 };
 
 function HttpWebHookSwitchAccessory(log, switchConfig, storage) {
