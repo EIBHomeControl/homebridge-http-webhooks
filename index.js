@@ -290,6 +290,7 @@ function HttpWebHookSensorAccessory(log, sensorConfig, storage) {
   this.id = sensorConfig["id"];
   this.name = sensorConfig["name"];
   this.type = sensorConfig["type"];
+  this.displayName = this.id;
   this.disableTimer = sensorConfig["disableTimer"] || false;
   this.enableHistory = sensorConfig["enableHistory"] || false;
   this.storage = storage;
@@ -360,7 +361,8 @@ function HttpWebHookSensorAccessory(log, sensorConfig, storage) {
     this.log("enable history for '%s' -> %s", this.name, this.enableHistory);
     if (this.enableHistory) {
     	this.fakeGatoHistoryService = new FakeGatoHistoryService("weather", this ,{
-      		disableTimer:this.disableTimer
+      	 disableTimer:this.disableTimer,
+         storage:'fs'
     	});
     }
     this.changeHandler = (function(newState) {
