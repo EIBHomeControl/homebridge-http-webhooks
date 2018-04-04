@@ -423,9 +423,9 @@ HttpWebHookSensorAccessory.prototype.getServices = function() {
 
   services = [this.informationService, this.service];
 
-  if (this.fakeGatoHistoryServer)
+  if (this.fakeGatoHistoryService)
   {
-  	services[services.length] = this.fakeGatoHistroyService;
+  	services[services.length] = this.fakeGatoHistoryService;
   }
 
   return services;
