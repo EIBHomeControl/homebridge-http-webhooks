@@ -5,6 +5,10 @@ var http = require('http');
 var url = require('url');
 const moment = require('moment');
 var Service, Characteristic,FakeGatoHistoryService;
+
+var auth = require('http-auth');
+var Service, Characteristic;
+
 var DEFAULT_REQUEST_TIMEOUT = 10000;
 var CONTEXT_FROM_WEBHOOK = "fromHTTPWebhooks";
 var CONTEXT_FROM_TIMEOUTCALL = "fromTimeoutCall";
@@ -33,6 +37,8 @@ function HttpWebHooksPlatform(log, config) {
   this.lights = config["lights"] || [];
   this.thermostats = config["thermostats"] || [];
   this.outlets = config["outlets"] || [];
+  this.httpAuthUser = config["http_auth_user"] || null;
+  this.httpAuthPass = config["http_auth_pass"] || null;
   this.storage = require('node-persist');
   this.storage.initSync({
     dir : this.cacheDirectory
@@ -77,7 +83,7 @@ HttpWebHooksPlatform.prototype = {
 
     callback(accessories);
 
-    http.createServer((function(request, response) {
+    var createServerCallback = (function(request, response) {
       var theUrl = request.url;
       var theUrlParts = url.parse(theUrl, true);
       var theUrlParams = theUrlParts.query;
@@ -158,7 +164,7 @@ HttpWebHooksPlatform.prototype = {
                 };
               }
               else {
-                if (accessory.type == "humidity" || accessory.type == "temperature") {
+                if (accessory.type == "humidity" || accessory.type == "temperature" || accessory.type == "airquality") {
                   var cachedValue = this.storage.getItemSync("http-webhook-" + accessoryId);
                   if (cachedValue === undefined) {
                     cachedValue = 0;
@@ -280,7 +286,23 @@ HttpWebHooksPlatform.prototype = {
           response.end();
         }
       }).bind(this));
-    }).bind(this)).listen(this.webhookPort);
+    }).bind(this);
+
+    if (this.httpAuthUser && this.httpAuthPass) {
+      var httpAuthUser = this.httpAuthUser;
+      var httpAuthPass = this.httpAuthPass;
+      basicAuth = auth.basic(
+        {
+          realm: "Auth required"
+        },
+        function(username, password, callback) {
+          callback(username === httpAuthUser && password === httpAuthPass);
+        }
+      );
+      http.createServer(basicAuth, createServerCallback).listen(this.webhookPort);;
+    } else {
+      http.createServer(createServerCallback).listen(this.webhookPort);;
+    }
     this.log("Started server for webhooks on port '%s'.", this.webhookPort);
   }
 }
@@ -385,6 +407,15 @@ function HttpWebHookSensorAccessory(log, sensorConfig, storage) {
     this.service.getCharacteristic(Characteristic.CurrentTemperature).on('get', this.getState.bind(this));
     this.service.getCharacteristic(Characteristic.StatusLowBattery).on('get', this.getStatusLowBattery.bind(this));
   }
+  else if (this.type === "airquality") {
+    this.service = new Service.AirQualitySensor(this.name);
+    this.changeHandler = (function(newState) {
+      this.log("Change HomeKit value for air quality sensor to '%s'.", newState);
+      this.service.getCharacteristic(Characteristic.AirQuality).updateValue(newState, undefined, CONTEXT_FROM_WEBHOOK);
+    }).bind(this);
+    this.service.getCharacteristic(Characteristic.AirQuality).on('get', this.getState.bind(this));
+  }
+
 }
 
 HttpWebHookSensorAccessory.prototype.getState = function(callback) {

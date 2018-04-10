@@ -72,10 +72,13 @@ To update a numeric accessory you need to call the url `http://yourHomebridgeSer
 For temperature sensors the value for `NEWVALUE` is the new temperature reading.
 ## Temperature sensor Battery Low
 For temperatur sensors the additional state `statuslowbattery` is available. The value for `NEWSTATE` is either `true` for battery low or `false` for normal and
-can be changed by calling the url `http://yourHomebridgeServerIp:webhook_port/?accessoryId=theAccessoryIdToTrigger&statuslowbattery=NEWSTATE` 
+can be changed by calling the url `http://yourHomebridgeServerIp:webhook_port/?accessoryId=theAccessoryIdToTrigger&statuslowbattery=NEWSTATE`
 
 ## Humidity sensor
 For humidity sensors the value for `NEWVALUE` is the new relative humidity percentage reading.
+
+## Air Quality sensor
+For air quality sensors the value for `NEWVALUE` is the new air quality value (Between 1-5, 1 Excellent).
 
 # Thermostat
 To update a thermostat you can update four different values:
@@ -93,6 +96,8 @@ Example config.json:
                 "platform": "HttpWebHooks",
                 "webhook_port": "51828",
                 "cache_directory": "./.node-persist/storage", // (optional, default: "./.node-persist/storage")
+                "http_auth_user": "test", // (optional, only if you like to secure your api)
+                "http_auth_pass": "test", // (optional, only if you like to secure your api)
                 "sensors": [
                     {
                     "id": "sensor1",
@@ -125,6 +130,11 @@ Example config.json:
                     "id": "sensor6",
                     "name": "Sensor name 6",
                     "type": "humidity"
+                    },
+                    {
+                    "id": "sensor7",
+                    "name": "Sensor name 7",
+                    "type": "airquality"
                     }
                 ],
                 "switches": [

@@ -1,16 +1,26 @@
+
+### 0.0.36
+
+New features:
+
+  - Added air quality as sensor (thanks to tansuka).
+
+
 ### 0.0.35
 
 New features:
 
   - Added support for battery state to temperature sensor
   - Added support for history (fakegato) to temperature sensor
-  
+
+  - Added http authentication if desired (thanks to paolotremadio).
+
 ### 0.0.34
 
 Bugfix:
 
   - Last fix wasn't correct. Removed cache handling for push button as state is always false.
-  
+
 ### 0.0.33
 
 Bugfix:
@@ -59,7 +69,7 @@ New features:
 New features:
 
   - Added light. Currently just on/off is supported.
-  
+
 ## 0.0.25
 
 Bugfix:
